@@ -3,11 +3,13 @@ import AppKit
 final class MainViewController: NSViewController, NSTableViewDataSource, NSTableViewDelegate {
     private let scanner: DeviceScanner
     private let simulator = InputSimulator()
+    private let rawRecorder = RawReportRecorder()
     private let tableView = NSTableView()
     private let detailStack = NSStackView()
     private let statusLabel = NSTextField(labelWithString: "")
     private var displayedDevices: [ControllerDevice] = []
     private weak var monitorView: ControllerMonitorView?
+    private weak var reportInspectorView: RawReportInspectorView?
 
     init(scanner: DeviceScanner) {
         self.scanner = scanner
@@ -27,6 +29,9 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
         }
         simulator.onStateChanged = { [weak self] state in
             self?.monitorView?.inputState = state
+        }
+        simulator.onRawReport = { [weak self] reportID, bytes in
+            self?.rawRecorder.receive(reportID: reportID, bytes: bytes)
         }
         simulator.start()
         update(devices: scanner.devices)
@@ -241,8 +246,16 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
         monitor.widthAnchor.constraint(equalTo: detailStack.widthAnchor, constant: -84).isActive = true
         monitorView = monitor
 
+        detailStack.addArrangedSubview(makeSectionTitle("Rapports bruts"))
+        let inspector = RawReportInspectorView(recorder: rawRecorder, sourceName: device.productName)
+        inspector.translatesAutoresizingMaskIntoConstraints = false
+        inspector.heightAnchor.constraint(equalToConstant: 330).isActive = true
+        detailStack.addArrangedSubview(inspector)
+        inspector.widthAnchor.constraint(equalTo: detailStack.widthAnchor, constant: -84).isActive = true
+        reportInspectorView = inspector
+
         detailStack.addArrangedSubview(makeSectionTitle("Prochaine étape"))
-        let next = NSTextField(wrappingLabelWithString: "Observer et décoder les rapports des boutons, sticks, gâchettes et du gyroscope — sans envoyer de commande à la manette.")
+        let next = NSTextField(wrappingLabelWithString: "À la réception de la manette, remplacer la source simulée par le callback IOHID réel sans changer l’inspecteur.")
         next.textColor = .secondaryLabelColor
         detailStack.addArrangedSubview(next)
     }
@@ -263,6 +276,7 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
 
     private func clearDetails() {
         monitorView = nil
+        reportInspectorView = nil
         detailStack.arrangedSubviews.forEach { view in
             detailStack.removeArrangedSubview(view)
             view.removeFromSuperview()

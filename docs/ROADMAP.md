@@ -7,6 +7,7 @@
 - [x] catalogue prudent des PID publiquement documentés ;
 - [x] état d'entrée normalisé ;
 - [x] simulateur et moniteur animé ;
+- [x] inspecteur de rapports bruts simulés avec diff et export JSON ;
 - [x] auto-vérification exécutable sans Xcode complet.
 
 ## Phase 1 — Première connexion réelle
@@ -19,7 +20,7 @@
 
 ## Phase 2 — Décodage des entrées
 
-- [ ] capturer les rapports bruts avec horodatage ;
+- [ ] connecter l'inspecteur existant aux rapports IOHID réels ;
 - [ ] associer chaque bit aux boutons physiques ;
 - [ ] décoder les sticks et gâchettes ;
 - [ ] mesurer les valeurs min/max, centres et bruit ;
