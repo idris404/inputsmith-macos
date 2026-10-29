@@ -4,12 +4,15 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
     private let scanner: DeviceScanner
     private let simulator = InputSimulator()
     private let rawRecorder = RawReportRecorder()
+    private let hidReportSource = HIDInputReportSource()
     private let tableView = NSTableView()
     private let detailStack = NSStackView()
     private let statusLabel = NSTextField(labelWithString: "")
     private var displayedDevices: [ControllerDevice] = []
     private weak var monitorView: ControllerMonitorView?
     private weak var reportInspectorView: RawReportInspectorView?
+    private weak var inputSourceLabel: NSTextField?
+    private var activeDeviceID: ControllerDevice.ID?
 
     init(scanner: DeviceScanner) {
         self.scanner = scanner
@@ -32,6 +35,12 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
         }
         simulator.onRawReport = { [weak self] reportID, bytes in
             self?.rawRecorder.receive(reportID: reportID, bytes: bytes)
+        }
+        hidReportSource.onReport = { [weak self] reportID, bytes, timestamp in
+            self?.rawRecorder.receive(reportID: reportID, bytes: bytes, timestamp: timestamp)
+        }
+        hidReportSource.onStatusChanged = { [weak self] status in
+            self?.inputSourceLabel?.stringValue = status.displayText
         }
         simulator.start()
         update(devices: scanner.devices)
@@ -216,6 +225,13 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
             detailStack.addArrangedSubview(catalog)
         }
 
+        let sourceLabel = NSTextField(labelWithString: "")
+        sourceLabel.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        sourceLabel.textColor = .secondaryLabelColor
+        sourceLabel.lineBreakMode = .byTruncatingMiddle
+        detailStack.addArrangedSubview(sourceLabel)
+        inputSourceLabel = sourceLabel
+
         detailStack.addArrangedSubview(makeSectionTitle("Identité USB/HID"))
         let rows = [
             ["Vendor ID", device.vendorIDHex],
@@ -254,8 +270,10 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
         inspector.widthAnchor.constraint(equalTo: detailStack.widthAnchor, constant: -84).isActive = true
         reportInspectorView = inspector
 
+        configureInputSource(for: device)
+
         detailStack.addArrangedSubview(makeSectionTitle("Prochaine étape"))
-        let next = NSTextField(wrappingLabelWithString: "À la réception de la manette, remplacer la source simulée par le callback IOHID réel sans changer l’inspecteur.")
+        let next = NSTextField(wrappingLabelWithString: "À la réception de la manette, identifier le rapport correspondant à chaque commande physique puis construire le décodeur sans envoyer de données au périphérique.")
         next.textColor = .secondaryLabelColor
         detailStack.addArrangedSubview(next)
     }
@@ -277,6 +295,7 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
     private func clearDetails() {
         monitorView = nil
         reportInspectorView = nil
+        inputSourceLabel = nil
         detailStack.arrangedSubviews.forEach { view in
             detailStack.removeArrangedSubview(view)
             view.removeFromSuperview()
@@ -297,7 +316,37 @@ final class MainViewController: NSViewController, NSTableViewDataSource, NSTable
         scanner.refresh()
     }
 
+    private func configureInputSource(for device: ControllerDevice) {
+        if activeDeviceID == device.id {
+            inputSourceLabel?.stringValue = device.isSimulated
+                ? "Simulation en écoute · rapport 0x12 · 24 octets"
+                : hidReportSource.status.displayText
+            return
+        }
+
+        activeDeviceID = device.id
+        rawRecorder.clear()
+
+        if device.isSimulated {
+            hidReportSource.stop()
+            simulator.start()
+            inputSourceLabel?.stringValue = "Simulation en écoute · rapport 0x12 · 24 octets"
+            return
+        }
+
+        simulator.stop()
+        monitorView?.inputState = .neutral
+        guard let hidDevice = scanner.hidDevice(for: device.id) else {
+            hidReportSource.stop()
+            inputSourceLabel?.stringValue = "IOHID indisponible · interface introuvable"
+            return
+        }
+        hidReportSource.start(device: hidDevice, deviceName: device.productName)
+        inputSourceLabel?.stringValue = hidReportSource.status.displayText
+    }
+
     deinit {
         simulator.stop()
+        hidReportSource.stop()
     }
 }

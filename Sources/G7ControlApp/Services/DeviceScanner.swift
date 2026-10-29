@@ -10,6 +10,7 @@ final class DeviceScanner {
     }
 
     private let manager: IOHIDManager
+    private var hidDevicesByID: [String: IOHIDDevice] = [:]
 
     init() {
         manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
@@ -42,18 +43,29 @@ final class DeviceScanner {
     }
 
     func refresh() {
-        let detected = (IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> ?? [])
-            .map(Self.makeDevice)
+        let hidDevices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> ?? []
+        var deviceMap: [String: IOHIDDevice] = [:]
+        let detected = hidDevices
+            .map { hidDevice in
+                let model = Self.makeDevice(hidDevice)
+                deviceMap[model.id] = hidDevice
+                return model
+            }
             .sorted {
                 if $0.productID == $1.productID { return $0.usage < $1.usage }
                 return $0.productID < $1.productID
             }
 
+        hidDevicesByID = deviceMap
         devices = simulationEnabled && detected.isEmpty
             ? [.simulatedG7Pro]
             : detected
         lastScan = Date()
         onDevicesChanged?(devices)
+    }
+
+    func hidDevice(for id: ControllerDevice.ID) -> IOHIDDevice? {
+        hidDevicesByID[id]
     }
 
     private static func makeDevice(_ device: IOHIDDevice) -> ControllerDevice {

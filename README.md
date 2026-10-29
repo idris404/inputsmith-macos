@@ -14,6 +14,7 @@ InputSmith commence avec la GameSir G7 Pro, un modèle qui ne dispose pas d'un o
 - couche d'état indépendante prête à recevoir les vrais rapports USB ;
 - inspecteur de rapports bruts avec diff d'octets, pause et export JSON ;
 - conservation bornée aux 500 derniers rapports pour maîtriser la mémoire ;
+- source IOHID macOS en lecture seule, sélectionnée automatiquement pour un appareil réel ;
 - aucune commande d'écriture et aucune interaction avec le firmware.
 
 Les noms associés aux PID connus sont des indications communautaires. La détection réelle de l'exemplaire reçu restera la source de vérité.
